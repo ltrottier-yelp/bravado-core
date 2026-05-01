@@ -153,7 +153,8 @@ def marshal_param(param, value, request):
         else:
             request.setdefault('data', {})[param.name] = value
     elif location == 'body':
-        if _should_use_msgpack(param):
+        content_type = request.get('headers', {}).get('Content-Type', '').lower()
+        if content_type == APP_MSGPACK:
             request['headers']['Content-Type'] = APP_MSGPACK
             request['data'] = msgpack.packb(value, use_bin_type=True)
         else:
@@ -164,22 +165,6 @@ def marshal_param(param, value, request):
             "Don't know how to marshal_param with location {0}".format(location),
         )
 
-
-def _should_use_msgpack(param):
-    """Determine whether to use msgpack encoding for a body parameter.
-
-    Uses msgpack only when the operation's consumes list includes
-    application/msgpack but NOT application/json. When both are
-    present or neither is present, defaults to JSON for backward
-    compatibility.
-
-    :type param: :class:`bravado_core.param.Param`
-    :rtype: bool
-    """
-    consumes = getattr(param.op, 'consumes', None)
-    if not consumes or not isinstance(consumes, (list, tuple)):
-        return False
-    return APP_MSGPACK in consumes and APP_JSON not in consumes
 
 
 def unmarshal_param(param, request):
