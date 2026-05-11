@@ -154,7 +154,13 @@ def marshal_param(param, value, request):
             request.setdefault('data', {})[param.name] = value
     elif location == 'body':
         content_type = request.get('headers', {}).get('Content-Type', '').lower()
+        consumes = getattr(param.op, 'consumes', None) or []
         if content_type == APP_MSGPACK:
+            if APP_MSGPACK not in consumes:
+                raise SwaggerMappingError(
+                    "Content-Type {} requested but operation "
+                    "does not consume it. Supported: {}".format(APP_MSGPACK, consumes),
+                )
             request['headers']['Content-Type'] = APP_MSGPACK
             request['data'] = msgpack.packb(value, use_bin_type=True)
         else:

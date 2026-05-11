@@ -11,6 +11,7 @@ from mock import patch
 
 from bravado_core.content_type import APP_JSON
 from bravado_core.content_type import APP_MSGPACK
+from bravado_core.exception import SwaggerMappingError
 from bravado_core.operation import Operation
 from bravado_core.param import encode_request_param
 from bravado_core.param import marshal_param
@@ -365,7 +366,7 @@ def test_body_msgpack_when_content_type_header_set(empty_swagger_spec, param_spe
     param_spec['schema'] = {'type': 'integer'}
     del param_spec['type']
     del param_spec['format']
-    op = Mock(spec=Operation)
+    op = Mock(spec=Operation, consumes=[APP_MSGPACK])
     param = Param(empty_swagger_spec, op, param_spec)
     request = {'headers': {'Content-Type': APP_MSGPACK}}
     marshal_param(param, 34, request)
@@ -386,13 +387,26 @@ def test_body_msgpack_with_object(empty_swagger_spec):
             },
         },
     }
-    op = Mock(spec=Operation)
+    op = Mock(spec=Operation, consumes=[APP_MSGPACK])
     param = Param(empty_swagger_spec, op, param_spec)
     request = {'headers': {'Content-Type': APP_MSGPACK}}
     value = {'name': 'Fido', 'age': 3}
     marshal_param(param, value, request)
     assert APP_MSGPACK == request['headers']['Content-Type']
     assert value == msgpack.unpackb(request['data'], raw=False)
+
+
+def test_body_msgpack_raises_when_spec_does_not_support_it(empty_swagger_spec, param_spec):
+    """When msgpack is requested but the spec only supports JSON, raise an error."""
+    param_spec['in'] = 'body'
+    param_spec['schema'] = {'type': 'integer'}
+    del param_spec['type']
+    del param_spec['format']
+    op = Mock(spec=Operation, consumes=[APP_JSON])
+    param = Param(empty_swagger_spec, op, param_spec)
+    request = {'headers': {'Content-Type': APP_MSGPACK}}
+    with pytest.raises(SwaggerMappingError, match="does not consume it"):
+        marshal_param(param, 34, request)
 
 
 def test_body_defaults_to_json_when_no_content_type(empty_swagger_spec, param_spec):
