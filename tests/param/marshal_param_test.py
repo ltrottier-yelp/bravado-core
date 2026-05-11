@@ -11,6 +11,7 @@ from mock import patch
 
 from bravado_core.content_type import APP_JSON
 from bravado_core.content_type import APP_MSGPACK
+from bravado_core.exception import SwaggerMappingError
 from bravado_core.operation import Operation
 from bravado_core.param import encode_request_param
 from bravado_core.param import marshal_param
@@ -359,22 +360,22 @@ def test_encode_request_param(param_type, param_value, expected_param_value):
     assert value == expected_param_value
 
 
-def test_body_msgpack_only_consumes(empty_swagger_spec, param_spec):
-    """When the operation only consumes msgpack, the body is packed and Content-Type is set to APP_MSGPACK."""
+def test_body_msgpack_when_content_type_header_set(empty_swagger_spec, param_spec):
+    """When the caller sets Content-Type to msgpack, the body is packed as msgpack."""
     param_spec['in'] = 'body'
     param_spec['schema'] = {'type': 'integer'}
     del param_spec['type']
     del param_spec['format']
     op = Mock(spec=Operation, consumes=[APP_MSGPACK])
     param = Param(empty_swagger_spec, op, param_spec)
-    request = {'headers': {}}
+    request = {'headers': {'Content-Type': APP_MSGPACK}}
     marshal_param(param, 34, request)
     assert APP_MSGPACK == request['headers']['Content-Type']
     assert 34 == msgpack.unpackb(request['data'], raw=False)
 
 
 def test_body_msgpack_with_object(empty_swagger_spec):
-    """Verifies that a dict body is correctly packed to msgpack bytes, not just scalar values."""
+    """Verifies that a dict body is correctly packed to msgpack bytes when Content-Type is msgpack."""
     param_spec = {
         'name': 'body',
         'in': 'body',
@@ -388,47 +389,61 @@ def test_body_msgpack_with_object(empty_swagger_spec):
     }
     op = Mock(spec=Operation, consumes=[APP_MSGPACK])
     param = Param(empty_swagger_spec, op, param_spec)
-    request = {'headers': {}}
+    request = {'headers': {'Content-Type': APP_MSGPACK}}
     value = {'name': 'Fido', 'age': 3}
     marshal_param(param, value, request)
     assert APP_MSGPACK == request['headers']['Content-Type']
     assert value == msgpack.unpackb(request['data'], raw=False)
 
 
-def test_body_json_preferred_when_both_consumes(empty_swagger_spec, param_spec):
-    """When an operation lists both APP_JSON and APP_MSGPACK, JSON takes priority over msgpack."""
-    param_spec['in'] = 'body'
-    param_spec['schema'] = {'type': 'integer'}
-    del param_spec['type']
-    del param_spec['format']
-    op = Mock(spec=Operation, consumes=[APP_JSON, APP_MSGPACK])
-    param = Param(empty_swagger_spec, op, param_spec)
-    request = {'headers': {}}
-    marshal_param(param, 34, request)
-    assert APP_JSON == request['headers']['Content-Type']
-    assert '34' == request['data']
-
-
-def test_body_json_when_only_json_consumes(empty_swagger_spec, param_spec):
-    """When the operation does not include APP_MSGPACK in its consumes list, JSON is used as the default."""
+def test_body_msgpack_raises_when_spec_does_not_support_it(empty_swagger_spec, param_spec):
+    """When msgpack is requested but the spec only supports JSON, raise an error."""
     param_spec['in'] = 'body'
     param_spec['schema'] = {'type': 'integer'}
     del param_spec['type']
     del param_spec['format']
     op = Mock(spec=Operation, consumes=[APP_JSON])
     param = Param(empty_swagger_spec, op, param_spec)
+    request = {'headers': {'Content-Type': APP_MSGPACK}}
+    with pytest.raises(SwaggerMappingError, match="does not consume it"):
+        marshal_param(param, 34, request)
+
+
+def test_body_defaults_to_json_when_no_content_type(empty_swagger_spec, param_spec):
+    """When no Content-Type header is set, JSON is used as the default."""
+    param_spec['in'] = 'body'
+    param_spec['schema'] = {'type': 'integer'}
+    del param_spec['type']
+    del param_spec['format']
+    op = Mock(spec=Operation)
+    param = Param(empty_swagger_spec, op, param_spec)
     request = {'headers': {}}
     marshal_param(param, 34, request)
     assert APP_JSON == request['headers']['Content-Type']
     assert '34' == request['data']
 
 
-def test_query_param_unaffected_by_msgpack_consumes(
+def test_body_json_when_content_type_is_json(empty_swagger_spec, param_spec):
+    """When Content-Type is explicitly set to JSON, JSON serialization is used."""
+    param_spec['in'] = 'body'
+    param_spec['schema'] = {'type': 'integer'}
+    del param_spec['type']
+    del param_spec['format']
+    op = Mock(spec=Operation)
+    param = Param(empty_swagger_spec, op, param_spec)
+    request = {'headers': {'Content-Type': APP_JSON}}
+    marshal_param(param, 34, request)
+    assert APP_JSON == request['headers']['Content-Type']
+    assert '34' == request['data']
+
+
+def test_query_param_unaffected_by_content_type(
     empty_swagger_spec, string_param_spec, request_dict,
 ):
-    """Query params are always marshalled as plain strings; the operation's consumes list has no effect on them."""
-    op = Mock(spec=Operation, consumes=[APP_MSGPACK])
+    """Query params are always marshalled as plain strings regardless of Content-Type header."""
+    op = Mock(spec=Operation)
     param = Param(empty_swagger_spec, op, string_param_spec)
+    request_dict['headers'] = {'Content-Type': APP_MSGPACK}
     expected = copy.deepcopy(request_dict)
     expected['params']['username'] = 'darwin'
     marshal_param(param, 'darwin', request_dict)
