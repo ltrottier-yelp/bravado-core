@@ -2,6 +2,10 @@ Changelog
 =========
 .. Make sure to link Issue and PR information as `(PR|Issue) #xxx`_ and with a link at the bottom of the document
 
+6.4.1 (2026-05-12)
+------------------
+- Fixes for mypy and autopep8 in the build - `PR #420`_
+
 6.4.0 (2026-05-11)
 ------------------
 - Use standard ``Content-Type`` header for MessagePack request serialization instead of the ``use_msgpack`` configuration option - `PR #419`_
@@ -613,6 +617,7 @@ Changelog
 .. _PR #417: https://github.com/Yelp/bravado-core/pull/417
 .. _PR #418: https://github.com/Yelp/bravado-core/pull/418
 .. _PR #419: https://github.com/Yelp/bravado-core/pull/419
+.. _PR #420: https://github.com/Yelp/bravado-core/pull/420
 .. _PR #413: https://github.com/Yelp/bravado-core/pull/413
 
 .. Link To Documentation pages
