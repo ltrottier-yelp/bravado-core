@@ -172,7 +172,6 @@ def marshal_param(param, value, request):
         )
 
 
-
 def unmarshal_param(param, request):
     """Unmarshal the given parameter from the passed in request like object.
 
